@@ -1,0 +1,39 @@
+{
+  "name": "sing-trainer",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "server": ".venv/bin/python -m uvicorn server.app:app --reload --reload-dir server --host 127.0.0.1 --port 8765",
+    "setup:v3": "uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r server/requirements.txt",
+    "build": "tsc --noEmit -p tsconfig.app.json && vite build",
+    "generate:test-midi": "node scripts/generate-test-midi.mjs",
+    "test": "vitest run",
+    "test:server": "python3 -m unittest server.test_analyzer -v",
+    "lint": "eslint . --max-warnings 0 && prettier --check .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@tonejs/midi": "^2.0.28",
+    "pitchy": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "tone": "^15.1.22"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "eslint": "latest",
+    "eslint-plugin-react-hooks": "latest",
+    "eslint-plugin-react-refresh": "latest",
+    "globals": "latest",
+    "prettier": "latest",
+    "typescript": "latest",
+    "typescript-eslint": "latest",
+    "vite": "latest",
+    "vitest": "latest"
+  }
+}
