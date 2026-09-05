@@ -3,7 +3,15 @@ import sys
 import unittest
 from pathlib import Path
 
-from server.analyzer import DEMUCS_MODEL, _demucs_command, segment_pitch_frames
+from server.analyzer import (
+    DEMUCS_MODEL,
+    _demucs_command,
+    filter_note_event_anomalies,
+    filter_pitch_anomalies,
+    segment_pitch_frames,
+    select_higher_harmony_frequency,
+    song_display_name,
+)
 
 
 def midi_to_frequency(note: int) -> float:
@@ -11,6 +19,80 @@ def midi_to_frequency(note: int) -> float:
 
 
 class SegmentPitchFramesTest(unittest.TestCase):
+    def test_preserves_dots_inside_an_existing_song_name(self) -> None:
+        name = "Singer feat. Guest - Song (Official Video)"
+
+        self.assertEqual(song_display_name(name), name)
+        self.assertEqual(song_display_name(f"{name}.mp3"), name)
+
+    def test_corrects_isolated_octave_note_events(self) -> None:
+        events = [
+            {"startTime": 0.0, "endTime": 1.0, "midiNote": 60},
+            {"startTime": 1.1, "endTime": 1.3, "midiNote": 72},
+            {"startTime": 1.4, "endTime": 2.4, "midiNote": 60},
+        ]
+
+        filtered = filter_note_event_anomalies(events)
+
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0]["midiNote"], 60)
+        self.assertEqual(filtered[0]["endTime"], 2.4)
+
+    def test_removes_extreme_events_outside_the_learned_register(self) -> None:
+        events = [
+            {"startTime": 0.0, "endTime": 1.0, "midiNote": 60},
+            {"startTime": 1.1, "endTime": 1.3, "midiNote": 36},
+            {"startTime": 1.4, "endTime": 2.4, "midiNote": 61},
+        ]
+
+        filtered = filter_note_event_anomalies(events)
+
+        self.assertEqual([event["midiNote"] for event in filtered], [60, 61])
+
+    def test_keeps_sustained_upper_register_notes(self) -> None:
+        events = [
+            {"startTime": 0.0, "endTime": 2.0, "midiNote": 60},
+            {"startTime": 2.1, "endTime": 4.1, "midiNote": 72},
+            {"startTime": 4.2, "endTime": 6.2, "midiNote": 60},
+        ]
+
+        filtered = filter_note_event_anomalies(events)
+
+        self.assertEqual([event["midiNote"] for event in filtered], [60, 72, 60])
+
+    def test_corrects_brief_octave_errors(self) -> None:
+        frequencies = [midi_to_frequency(60)] * 9
+        frequencies[4] = midi_to_frequency(72)
+
+        filtered = filter_pitch_anomalies(frequencies, window_radius=4)
+
+        self.assertAlmostEqual(filtered[4], midi_to_frequency(60))
+
+    def test_drops_non_octave_extreme_spikes(self) -> None:
+        frequencies = [midi_to_frequency(60)] * 9
+        frequencies[4] = midi_to_frequency(80)
+
+        filtered = filter_pitch_anomalies(frequencies, window_radius=4)
+
+        self.assertIsNone(filtered[4])
+
+    def test_keeps_normal_melodic_and_harmony_motion(self) -> None:
+        frequencies = [midi_to_frequency(60)] * 5 + [midi_to_frequency(67)] * 5
+
+        filtered = filter_pitch_anomalies(frequencies, window_radius=4)
+
+        self.assertTrue(all(frequency is not None for frequency in filtered))
+
+    def test_selects_higher_harmony_without_accepting_an_octave(self) -> None:
+        self.assertAlmostEqual(
+            select_higher_harmony_frequency(220, [220, 277.18]),
+            277.18,
+        )
+        self.assertEqual(
+            select_higher_harmony_frequency(220, [220, 440]),
+            220,
+        )
+
     def test_uses_fine_tuned_vocal_separation(self) -> None:
         command = _demucs_command(Path("song.mp3"), Path("stems"))
 

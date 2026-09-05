@@ -11,6 +11,7 @@ describe("parseAnalyzedSong", () => {
       cacheKey: "abc",
       cached: false,
       vocalUrl: "/api/vocals/abc",
+      originalUrl: "/api/original/abc",
     });
 
     expect(result.events[0].midiNote).toBe(69);
@@ -26,6 +27,7 @@ describe("parseAnalyzedSong", () => {
         cacheKey: "abc",
         cached: false,
         vocalUrl: "/api/vocals/abc",
+        originalUrl: "/api/original/abc",
       }),
     ).toThrow("invalid response");
   });

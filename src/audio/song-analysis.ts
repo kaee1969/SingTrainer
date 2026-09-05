@@ -8,6 +8,7 @@ export interface AnalyzedSong {
   cacheKey: string;
   cached: boolean;
   vocalUrl: string;
+  originalUrl: string;
 }
 
 export interface SavedSongSummary {
@@ -44,7 +45,8 @@ export function parseAnalyzedSong(value: unknown): AnalyzedSong {
     typeof response.analyzer !== "string" ||
     typeof response.cacheKey !== "string" ||
     typeof response.cached !== "boolean" ||
-    typeof response.vocalUrl !== "string"
+    typeof response.vocalUrl !== "string" ||
+    typeof response.originalUrl !== "string"
   ) {
     throw new Error("The analysis service returned an invalid response");
   }
@@ -57,6 +59,7 @@ export function parseAnalyzedSong(value: unknown): AnalyzedSong {
     cacheKey: response.cacheKey,
     cached: response.cached,
     vocalUrl: response.vocalUrl,
+    originalUrl: response.originalUrl,
   };
 }
 

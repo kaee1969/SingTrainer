@@ -225,47 +225,76 @@ h1 {
   overflow-y: auto;
 }
 
-button.saved-song {
+.saved-song {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   min-height: 48px;
-  padding: 8px 11px;
-  border-color: #dedfd9;
+  overflow: hidden;
+  border: 1px solid #dedfd9;
   border-radius: 9px;
   background: #fffefa;
   color: #303632;
-  text-align: left;
 }
 
-button.saved-song:hover:not(:disabled),
-button.saved-song.active {
+.saved-song:hover,
+.saved-song.active {
   border-color: #8eaa9e;
   background: #edf3ef;
 }
 
-.saved-song > span:first-child {
+.saved-song-load {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 11px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.saved-song-load > span:first-child {
   display: grid;
   min-width: 0;
 }
 
-.saved-song strong {
+.saved-song-load strong {
   overflow: hidden;
   font-size: 0.82rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.saved-song small,
-.saved-song > span:last-child {
+.saved-song-load small,
+.saved-song-load > span:last-child {
   color: #777b75;
   font-size: 0.68rem;
   font-variant-numeric: tabular-nums;
 }
 
-.saved-song > span:last-child {
+.saved-song-load > span:last-child {
   flex: 0 0 auto;
+}
+
+.saved-song-delete {
+  align-self: stretch;
+  padding: 0 11px;
+  border: 0;
+  border-left: 1px solid #dedfd9;
+  border-radius: 0;
+  background: transparent;
+  color: #a14b45;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.saved-song-delete:hover:not(:disabled) {
+  background: #f9e8e5;
+  color: #822f2a;
 }
 
 @keyframes analysis-spin {
@@ -530,6 +559,94 @@ button.saved-song.active {
   margin-right: 6px;
   border-radius: 50%;
   content: "";
+}
+
+.lyrics-tracker {
+  position: relative;
+  height: 276px;
+  overflow: hidden;
+  margin: 0 0 18px;
+  border-radius: 16px;
+  background: #06442f;
+  color: white;
+  text-align: left;
+}
+
+.lyrics-tracker::before,
+.lyrics-tracker::after {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  left: 0;
+  height: 42px;
+  pointer-events: none;
+  content: "";
+}
+
+.lyrics-tracker::before {
+  top: 42px;
+  background: linear-gradient(#06442f, transparent);
+}
+
+.lyrics-tracker::after {
+  bottom: 0;
+  background: linear-gradient(transparent, #06442f);
+}
+
+.lyrics-heading {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  padding: 13px 18px 9px;
+  color: rgb(205 235 222 / 70%);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lyrics-lines {
+  height: 230px;
+  overflow-y: auto;
+  padding: 82px 22px 105px;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.lyrics-lines::-webkit-scrollbar {
+  display: none;
+}
+
+.lyrics-lines p {
+  margin: 0 0 28px;
+  color: #d3eee2;
+  font-size: clamp(1.15rem, 4vw, 1.55rem);
+  font-weight: 760;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+  transition:
+    color 220ms ease,
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.lyrics-lines p.active {
+  color: #fff;
+  opacity: 1 !important;
+  text-shadow: 0 0 18px rgb(255 255 255 / 16%);
+  transform: scale(1.02);
+  transform-origin: left center;
+}
+
+.lyrics-message {
+  margin: 0 0 18px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: #edf3ef;
+  color: #65736d;
+  font-size: 0.78rem;
+  text-align: left;
 }
 
 .target-key::before {

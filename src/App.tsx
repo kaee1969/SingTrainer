@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MelodyPlayer } from "./audio/melody-player";
+import { parseSyncedLyrics, type SyncedLyrics } from "./audio/lyrics";
 import { MicPitchTracker } from "./audio/mic-pitch-tracker";
 import { midiToFrequency, midiToNoteName } from "./audio/note-utils";
 import {
@@ -17,6 +18,7 @@ import {
   type SavedSongSummary,
 } from "./audio/song-analysis";
 import { PitchHighway } from "./components/PitchHighway";
+import { LyricsTracker } from "./components/LyricsTracker";
 import {
   parseMidiFile,
   type MelodyTrack,
@@ -42,6 +44,7 @@ type Mode = "note" | "midi" | "audio";
 type MicState = "idle" | "starting" | "listening" | "error";
 type PlaybackState = "idle" | "starting" | "countdown" | "playing" | "finished";
 type AnalysisState = "idle" | "analyzing" | "loading" | "ready" | "error";
+type LyricsState = "idle" | "loading" | "ready" | "unavailable";
 
 interface PracticeMelody {
   name: string;
@@ -81,6 +84,8 @@ function App() {
   const [midi, setMidi] = useState<ParsedMidi | null>(null);
   const [analyzedSong, setAnalyzedSong] = useState<AnalyzedSong | null>(null);
   const [savedSongs, setSavedSongs] = useState<SavedSongSummary[]>([]);
+  const [lyrics, setLyrics] = useState<SyncedLyrics | null>(null);
+  const [lyricsState, setLyricsState] = useState<LyricsState>("idle");
   const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
   const [selectedTrackId, setSelectedTrackId] = useState(-1);
   const [position, setPosition] = useState(0);
@@ -88,6 +93,7 @@ function App() {
   const [score, setScore] = useState<ScoreSummary>(EMPTY_SCORE);
   const [errorMessage, setErrorMessage] = useState("");
   const [fileBusy, setFileBusy] = useState(false);
+  const [deletingSongKey, setDeletingSongKey] = useState<string | null>(null);
 
   const trackerRef = useRef<MicPitchTracker | null>(null);
   const playerRef = useRef(new MelodyPlayer());
@@ -98,6 +104,7 @@ function App() {
   const indicatorTimeoutRef = useRef<number | null>(null);
   const sessionIdRef = useRef(0);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
+  const lyricsRequestRef = useRef(0);
 
   const selectedTrack = useMemo<MelodyTrack | null>(
     () => midi?.tracks.find((track) => track.id === selectedTrackId) ?? null,
@@ -277,6 +284,8 @@ function App() {
     setAnalysisState("analyzing");
     setErrorMessage("");
     setAnalyzedSong(null);
+    setLyrics(null);
+    setLyricsState("idle");
 
     const formData = new FormData();
     formData.append("file", file);
@@ -297,12 +306,13 @@ function App() {
       }
 
       const result = parseAnalyzedSong(body);
-      songPlayerRef.current.setSource(result.vocalUrl);
+      songPlayerRef.current.setSource(result.originalUrl);
       setAnalyzedSong(result);
       setAnalysisState("ready");
       setPosition(0);
       setScore(EMPTY_SCORE);
       void refreshSavedSongs();
+      void loadLyrics(result.cacheKey);
     } catch (error) {
       setAnalysisState("error");
       setErrorMessage(
@@ -329,6 +339,8 @@ function App() {
     stopPlayback();
     setAnalysisState("loading");
     setErrorMessage("");
+    setLyrics(null);
+    setLyricsState("idle");
 
     try {
       const response = await fetch(`/api/songs/${cacheKey}`);
@@ -338,11 +350,12 @@ function App() {
       }
 
       const result = parseAnalyzedSong(body);
-      songPlayerRef.current.setSource(result.vocalUrl);
+      songPlayerRef.current.setSource(result.originalUrl);
       setAnalyzedSong(result);
       setAnalysisState("ready");
       setPosition(0);
       setScore(EMPTY_SCORE);
+      void loadLyrics(result.cacheKey);
     } catch (error) {
       setAnalysisState("error");
       setErrorMessage(
@@ -352,6 +365,72 @@ function App() {
             ? error.message
             : "Could not load that saved song.",
       );
+    }
+  }
+
+  async function deleteSavedSong(song: SavedSongSummary): Promise<void> {
+    if (!window.confirm(`Delete “${song.name}” from your saved songs?`)) return;
+
+    setDeletingSongKey(song.cacheKey);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch(`/api/songs/${song.cacheKey}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error("That saved song could not be deleted.");
+      }
+
+      setSavedSongs((songs) =>
+        songs.filter((savedSong) => savedSong.cacheKey !== song.cacheKey),
+      );
+
+      if (analyzedSong?.cacheKey === song.cacheKey) {
+        stopPlayback();
+        songPlayerRef.current.dispose();
+        lyricsRequestRef.current += 1;
+        setAnalyzedSong(null);
+        setAnalysisState("idle");
+        setLyrics(null);
+        setLyricsState("idle");
+        setPosition(0);
+        setScore(EMPTY_SCORE);
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof TypeError
+          ? "Could not reach the local song library. Run npm run server and try again."
+          : error instanceof Error
+            ? error.message
+            : "That saved song could not be deleted.",
+      );
+    } finally {
+      setDeletingSongKey(null);
+    }
+  }
+
+  async function loadLyrics(cacheKey: string): Promise<void> {
+    const requestId = lyricsRequestRef.current + 1;
+    lyricsRequestRef.current = requestId;
+    setLyricsState("loading");
+
+    try {
+      const response = await fetch(`/api/lyrics/${cacheKey}`);
+      const body: unknown = await response.json().catch(() => null);
+      if (lyricsRequestRef.current !== requestId) return;
+      if (!response.ok) {
+        setLyrics(null);
+        setLyricsState("unavailable");
+        return;
+      }
+
+      setLyrics(parseSyncedLyrics(body));
+      setLyricsState("ready");
+    } catch {
+      if (lyricsRequestRef.current !== requestId) return;
+      setLyrics(null);
+      setLyricsState("unavailable");
     }
   }
 
@@ -605,23 +684,45 @@ function App() {
                 </div>
                 <div className="saved-song-list">
                   {savedSongs.map((song) => (
-                    <button
+                    <div
                       className={
                         analyzedSong?.cacheKey === song.cacheKey
                           ? "saved-song active"
                           : "saved-song"
                       }
-                      type="button"
                       key={song.cacheKey}
-                      disabled={analysisBusy || practiceActive}
-                      onClick={() => void loadSavedSong(song.cacheKey)}
                     >
-                      <span>
-                        <strong>{song.name}</strong>
-                        <small>{song.eventCount} vocal notes</small>
-                      </span>
-                      <span>{formatTime(song.duration)}</span>
-                    </button>
+                      <button
+                        className="saved-song-load"
+                        type="button"
+                        disabled={
+                          analysisBusy ||
+                          practiceActive ||
+                          deletingSongKey === song.cacheKey
+                        }
+                        onClick={() => void loadSavedSong(song.cacheKey)}
+                      >
+                        <span>
+                          <strong>{song.name}</strong>
+                          <small>{song.eventCount} vocal notes</small>
+                        </span>
+                        <span>{formatTime(song.duration)}</span>
+                      </button>
+                      <button
+                        className="saved-song-delete"
+                        type="button"
+                        aria-label={`Delete ${song.name}`}
+                        title={`Delete ${song.name}`}
+                        disabled={
+                          analysisBusy ||
+                          practiceActive ||
+                          deletingSongKey !== null
+                        }
+                        onClick={() => void deleteSavedSong(song)}
+                      >
+                        {deletingSongKey === song.cacheKey ? "…" : "Delete"}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -676,6 +777,19 @@ function App() {
               playing={playing}
               countdown={countdown}
             />
+            {mode === "audio" && lyrics && (
+              <LyricsTracker lyrics={lyrics} currentTime={position} />
+            )}
+            {mode === "audio" && lyricsState === "loading" && (
+              <div className="lyrics-message" role="status">
+                Finding time-synced lyrics…
+              </div>
+            )}
+            {mode === "audio" && lyricsState === "unavailable" && (
+              <div className="lyrics-message">
+                No synced lyrics found. Filenames work best as Artist - Song.
+              </div>
+            )}
             <div className="live-pitch-row" aria-live="polite">
               <div>
                 <span className="eyebrow">Target</span>
@@ -815,6 +929,9 @@ function App() {
 
         <p className="privacy-note">
           Files stay on this device and are processed only by the local app.
+          {mode === "audio"
+            ? " Song name and duration are sent to LRCLIB for lyrics."
+            : ""}
           {mode !== "note" ? " Headphones work best." : ""}
         </p>
       </section>

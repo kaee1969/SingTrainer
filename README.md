@@ -43,9 +43,22 @@ several minutes on CPU. It uses higher-overlap processing for a cleaner vocal st
 so extraction is slower than the standard Demucs preset. Later analyses of the
 exact same file use `server/cache/`.
 
+When the vocal stem contains simultaneous harmony voices, the analyser follows
+the higher credible pitch. It rejects octave-distance candidates so ordinary vocal
+overtones are not mistaken for a second singer.
+
+A rolling vocal-contour filter corrects brief octave errors and removes isolated
+high or low pitch spikes caused by residual instruments, while keeping sustained
+note changes and normal harmony movement.
+
 Completed analyses appear in the app's **Saved songs** list. The local server
-stores the extracted vocal and melody timeline, so refreshing the browser does
-not require choosing or analysing the original song again.
+stores the original audio, extracted vocal, and melody timeline, so refreshing
+the browser does not require choosing or analysing the original song again.
+
+Song practice plays the original uploaded audio. The app asks LRCLIB for
+line-synced lyrics using the cleaned filename and song duration, then stores the
+result locally and highlights each line during playback. Naming files as
+`Artist - Song.mp3` gives the lyrics search the best chance of an exact match.
 
 Song files are posted only to `127.0.0.1`; the service runs locally and does not
 upload audio to any external service. Use audio you own or are licensed to use.
