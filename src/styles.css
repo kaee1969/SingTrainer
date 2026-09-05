@@ -197,6 +197,77 @@ h1 {
   margin-bottom: 0;
 }
 
+.saved-song-library {
+  margin-top: 14px;
+  padding: 13px;
+  border: 1px solid #e2e1da;
+  border-radius: 12px;
+  background: #faf9f5;
+}
+
+.saved-song-library-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.saved-song-library-heading > span:last-child {
+  color: #858982;
+  font-size: 0.68rem;
+}
+
+.saved-song-list {
+  display: grid;
+  gap: 6px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+button.saved-song {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 11px;
+  border-color: #dedfd9;
+  border-radius: 9px;
+  background: #fffefa;
+  color: #303632;
+  text-align: left;
+}
+
+button.saved-song:hover:not(:disabled),
+button.saved-song.active {
+  border-color: #8eaa9e;
+  background: #edf3ef;
+}
+
+.saved-song > span:first-child {
+  display: grid;
+  min-width: 0;
+}
+
+.saved-song strong {
+  overflow: hidden;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-song small,
+.saved-song > span:last-child {
+  color: #777b75;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.saved-song > span:last-child {
+  flex: 0 0 auto;
+}
+
 @keyframes analysis-spin {
   to {
     transform: rotate(360deg);

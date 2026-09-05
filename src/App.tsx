@@ -10,7 +10,12 @@ import {
 } from "./audio/pitch-comparison";
 import type { NoteEvent, PitchReading } from "./audio/types";
 import { SongAudioPlayer } from "./audio/song-audio-player";
-import { parseAnalyzedSong, type AnalyzedSong } from "./audio/song-analysis";
+import {
+  parseAnalyzedSong,
+  parseSavedSongs,
+  type AnalyzedSong,
+  type SavedSongSummary,
+} from "./audio/song-analysis";
 import { PitchHighway } from "./components/PitchHighway";
 import {
   parseMidiFile,
@@ -36,7 +41,7 @@ const VOICE_MARKER_HOLD_MS = 1_000;
 type Mode = "note" | "midi" | "audio";
 type MicState = "idle" | "starting" | "listening" | "error";
 type PlaybackState = "idle" | "starting" | "countdown" | "playing" | "finished";
-type AnalysisState = "idle" | "analyzing" | "ready" | "error";
+type AnalysisState = "idle" | "analyzing" | "loading" | "ready" | "error";
 
 interface PracticeMelody {
   name: string;
@@ -75,6 +80,7 @@ function App() {
   const [activeNote, setActiveNote] = useState<NoteEvent | null>(null);
   const [midi, setMidi] = useState<ParsedMidi | null>(null);
   const [analyzedSong, setAnalyzedSong] = useState<AnalyzedSong | null>(null);
+  const [savedSongs, setSavedSongs] = useState<SavedSongSummary[]>([]);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
   const [selectedTrackId, setSelectedTrackId] = useState(-1);
   const [position, setPosition] = useState(0);
@@ -125,6 +131,8 @@ function App() {
   const progress = practiceMelody
     ? Math.min(100, (position / practiceMelody.duration) * 100)
     : 0;
+  const analysisBusy =
+    analysisState === "analyzing" || analysisState === "loading";
 
   useEffect(() => {
     const player = playerRef.current;
@@ -141,6 +149,21 @@ function App() {
       player.dispose();
       songPlayer.dispose();
     };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void fetch("/api/songs", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) return;
+        setSavedSongs(parseSavedSongs(await response.json()));
+      })
+      .catch(() => {
+        // The server may not be running while using the browser-only modes.
+      });
+
+    return () => controller.abort();
   }, []);
 
   function handlePitch(nextReading: PitchReading | null) {
@@ -279,6 +302,7 @@ function App() {
       setAnalysisState("ready");
       setPosition(0);
       setScore(EMPTY_SCORE);
+      void refreshSavedSongs();
     } catch (error) {
       setAnalysisState("error");
       setErrorMessage(
@@ -287,6 +311,46 @@ function App() {
           : error instanceof Error
             ? error.message
             : "Could not reach the local analysis service. Run npm run server and try again.",
+      );
+    }
+  }
+
+  async function refreshSavedSongs(): Promise<void> {
+    try {
+      const response = await fetch("/api/songs");
+      if (!response.ok) return;
+      setSavedSongs(parseSavedSongs(await response.json()));
+    } catch {
+      // Loading a song still succeeds if refreshing the library fails.
+    }
+  }
+
+  async function loadSavedSong(cacheKey: string): Promise<void> {
+    stopPlayback();
+    setAnalysisState("loading");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch(`/api/songs/${cacheKey}`);
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error("That saved song is no longer available.");
+      }
+
+      const result = parseAnalyzedSong(body);
+      songPlayerRef.current.setSource(result.vocalUrl);
+      setAnalyzedSong(result);
+      setAnalysisState("ready");
+      setPosition(0);
+      setScore(EMPTY_SCORE);
+    } catch (error) {
+      setAnalysisState("error");
+      setErrorMessage(
+        error instanceof TypeError
+          ? "Could not reach the local song library. Run npm run server and try again."
+          : error instanceof Error
+            ? error.message
+            : "Could not load that saved song.",
       );
     }
   }
@@ -508,13 +572,15 @@ function App() {
             <button
               className="file-picker"
               type="button"
-              disabled={analysisState === "analyzing" || practiceActive}
+              disabled={analysisBusy || practiceActive}
               onClick={() => audioInputRef.current?.click()}
             >
               <span>
                 {analysisState === "analyzing"
                   ? "Analyzing song…"
-                  : "Choose owned song audio"}
+                  : analysisState === "loading"
+                    ? "Loading saved song…"
+                    : "Choose owned song audio"}
               </span>
             </button>
             <input
@@ -523,13 +589,43 @@ function App() {
               type="file"
               aria-label="Select song audio file"
               accept="audio/*,.mp3,.m4a,.wav,.flac,.ogg"
-              disabled={analysisState === "analyzing" || practiceActive}
+              disabled={analysisBusy || practiceActive}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) void analyzeAudio(file);
                 event.target.value = "";
               }}
             />
+
+            {savedSongs.length > 0 && (
+              <div className="saved-song-library">
+                <div className="saved-song-library-heading">
+                  <span className="eyebrow">Saved songs</span>
+                  <span>Stored on this device</span>
+                </div>
+                <div className="saved-song-list">
+                  {savedSongs.map((song) => (
+                    <button
+                      className={
+                        analyzedSong?.cacheKey === song.cacheKey
+                          ? "saved-song active"
+                          : "saved-song"
+                      }
+                      type="button"
+                      key={song.cacheKey}
+                      disabled={analysisBusy || practiceActive}
+                      onClick={() => void loadSavedSong(song.cacheKey)}
+                    >
+                      <span>
+                        <strong>{song.name}</strong>
+                        <small>{song.eventCount} vocal notes</small>
+                      </span>
+                      <span>{formatTime(song.duration)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {analysisState === "analyzing" && (
               <div className="analysis-status" role="status">
@@ -701,9 +797,7 @@ function App() {
             }
             type="button"
             disabled={
-              !practiceMelody ||
-              playbackState === "starting" ||
-              analysisState === "analyzing"
+              !practiceMelody || playbackState === "starting" || analysisBusy
             }
             onClick={() =>
               void (practiceActive ? stopMidiPractice() : startPractice())

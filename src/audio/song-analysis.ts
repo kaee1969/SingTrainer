@@ -10,6 +10,15 @@ export interface AnalyzedSong {
   vocalUrl: string;
 }
 
+export interface SavedSongSummary {
+  name: string;
+  duration: number;
+  eventCount: number;
+  analyzer: string;
+  cacheKey: string;
+  savedAt: string;
+}
+
 function isNoteEvent(value: unknown): value is NoteEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Record<string, unknown>;
@@ -49,4 +58,42 @@ export function parseAnalyzedSong(value: unknown): AnalyzedSong {
     cached: response.cached,
     vocalUrl: response.vocalUrl,
   };
+}
+
+export function parseSavedSongs(value: unknown): SavedSongSummary[] {
+  if (!value || typeof value !== "object") {
+    throw new Error("The saved song library returned an invalid response");
+  }
+
+  const songs = (value as Record<string, unknown>).songs;
+  if (!Array.isArray(songs)) {
+    throw new Error("The saved song library returned an invalid response");
+  }
+
+  return songs.map((value) => {
+    if (!value || typeof value !== "object") {
+      throw new Error("The saved song library returned an invalid response");
+    }
+
+    const song = value as Record<string, unknown>;
+    if (
+      typeof song.name !== "string" ||
+      typeof song.duration !== "number" ||
+      typeof song.eventCount !== "number" ||
+      typeof song.analyzer !== "string" ||
+      typeof song.cacheKey !== "string" ||
+      typeof song.savedAt !== "string"
+    ) {
+      throw new Error("The saved song library returned an invalid response");
+    }
+
+    return {
+      name: song.name,
+      duration: song.duration,
+      eventCount: song.eventCount,
+      analyzer: song.analyzer,
+      cacheKey: song.cacheKey,
+      savedAt: song.savedAt,
+    };
+  });
 }

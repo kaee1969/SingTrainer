@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 
-ANALYSIS_VERSION = 2
+ANALYSIS_VERSION = 3
+SEPARATION_VERSION = 2
+DEMUCS_MODEL = "htdemucs_ft"
+DEMUCS_OVERLAP = 0.5
 
 
 def frequency_to_midi(frequency: float) -> float:
@@ -134,21 +137,27 @@ def _normalise_audio(source: Path, destination: Path) -> None:
     subprocess.run(command, check=True, capture_output=True)
 
 
-def _separate_vocals(source: Path, output_directory: Path) -> Path:
-    command = [
+def _demucs_command(source: Path, output_directory: Path) -> list[str]:
+    return [
         sys.executable,
         "-m",
         "demucs",
         "--two-stems",
         "vocals",
         "-n",
-        "htdemucs",
+        DEMUCS_MODEL,
+        "--overlap",
+        str(DEMUCS_OVERLAP),
         "-o",
         str(output_directory),
         str(source),
     ]
+
+
+def _separate_vocals(source: Path, output_directory: Path) -> Path:
+    command = _demucs_command(source, output_directory)
     subprocess.run(command, check=True)
-    vocal_path = output_directory / "htdemucs" / source.stem / "vocals.wav"
+    vocal_path = output_directory / DEMUCS_MODEL / source.stem / "vocals.wav"
     if not vocal_path.exists():
         raise RuntimeError("Demucs completed without producing a vocal stem")
     return vocal_path
@@ -159,12 +168,17 @@ def analyse_song(
     original_name: str,
     *,
     vocal_output: Path | None = None,
+    reuse_existing_vocal: bool = False,
 ) -> dict[str, object]:
     import librosa
     import numpy as np
 
     work_directory = source.parent / "analysis"
-    if vocal_output is not None and vocal_output.exists():
+    if (
+        reuse_existing_vocal
+        and vocal_output is not None
+        and vocal_output.exists()
+    ):
         # Reuse the expensive Demucs result when only the pitch-analysis
         # algorithm has changed.
         vocal_path = vocal_output
@@ -241,8 +255,9 @@ def analyse_song(
         "name": Path(original_name).stem,
         "duration": round(float(librosa.get_duration(y=audio, sr=sample_rate)), 4),
         "events": events,
-        "analyzer": "Demucs htdemucs + librosa pYIN",
+        "analyzer": f"Demucs {DEMUCS_MODEL} + librosa pYIN",
         "analysisVersion": ANALYSIS_VERSION,
+        "separationVersion": SEPARATION_VERSION,
     }
 
 

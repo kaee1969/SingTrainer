@@ -38,8 +38,14 @@ npm run server
 ```
 
 Keep the server running in one terminal, then run `npm run dev` in another. The
-first song analysis also downloads the Demucs model and can take several minutes
-on CPU. Later analyses of the exact same file use `server/cache/`.
+first song analysis also downloads the fine-tuned Demucs vocal model and can take
+several minutes on CPU. It uses higher-overlap processing for a cleaner vocal stem,
+so extraction is slower than the standard Demucs preset. Later analyses of the
+exact same file use `server/cache/`.
+
+Completed analyses appear in the app's **Saved songs** list. The local server
+stores the extracted vocal and melody timeline, so refreshing the browser does
+not require choosing or analysing the original song again.
 
 Song files are posted only to `127.0.0.1`; the service runs locally and does not
 upload audio to any external service. Use audio you own or are licensed to use.

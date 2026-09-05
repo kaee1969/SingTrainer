@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAnalyzedSong } from "./song-analysis";
+import { parseAnalyzedSong, parseSavedSongs } from "./song-analysis";
 
 describe("parseAnalyzedSong", () => {
   it("accepts normalized analysis results", () => {
@@ -27,6 +27,30 @@ describe("parseAnalyzedSong", () => {
         cached: false,
         vocalUrl: "/api/vocals/abc",
       }),
+    ).toThrow("invalid response");
+  });
+
+  it("parses the saved song library", () => {
+    const songs = parseSavedSongs({
+      songs: [
+        {
+          name: "Warmup",
+          duration: 90,
+          eventCount: 120,
+          analyzer: "test",
+          cacheKey: "abc",
+          savedAt: "2026-09-05T10:00:00+00:00",
+        },
+      ],
+    });
+
+    expect(songs).toHaveLength(1);
+    expect(songs[0].eventCount).toBe(120);
+  });
+
+  it("rejects malformed saved song entries", () => {
+    expect(() =>
+      parseSavedSongs({ songs: [{ name: "Missing fields" }] }),
     ).toThrow("invalid response");
   });
 });

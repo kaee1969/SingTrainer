@@ -1,7 +1,9 @@
 import math
+import sys
 import unittest
+from pathlib import Path
 
-from server.analyzer import segment_pitch_frames
+from server.analyzer import DEMUCS_MODEL, _demucs_command, segment_pitch_frames
 
 
 def midi_to_frequency(note: int) -> float:
@@ -9,6 +11,14 @@ def midi_to_frequency(note: int) -> float:
 
 
 class SegmentPitchFramesTest(unittest.TestCase):
+    def test_uses_fine_tuned_vocal_separation(self) -> None:
+        command = _demucs_command(Path("song.mp3"), Path("stems"))
+
+        self.assertEqual(command[:3], [sys.executable, "-m", "demucs"])
+        self.assertIn(DEMUCS_MODEL, command)
+        self.assertEqual(command[command.index("--overlap") + 1], "0.5")
+        self.assertEqual(command[command.index("--two-stems") + 1], "vocals")
+
     def test_groups_stable_frames_into_note_events(self) -> None:
         times = [index * 0.05 for index in range(10)]
         frequencies = [midi_to_frequency(69)] * 5 + [midi_to_frequency(71)] * 5
